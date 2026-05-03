@@ -116,16 +116,3 @@ All public operations return `Result<_, PostgresError>`. `PostgresError` include
 | `message` | `string` | Human-readable error message |
 | `detail` | `string | null` | PostgreSQL detail text when available |
 | `sql` | `string | null` | SQL text associated with the error when available |
-
-## Tests
-
-Integration tests are in [tests/postgres.test.do](tests/postgres.test.do). They return early unless one of these environment variables is set:
-
-- `DOOF_POSTGRES_TEST_URL`
-- `POSTGRES_URL`
-
-Example:
-
-```bash
-DOOF_POSTGRES_TEST_URL=postgresql://localhost/postgres doof test tests/postgres.test.do
-```
