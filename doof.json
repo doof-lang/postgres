@@ -1,0 +1,27 @@
+{
+  "name": "std/postgres",
+  "version": "0.1.0",
+  "license": "ISC",
+  "build": {
+    "native": {
+      "extraCopyPaths": [
+        "./native_postgres.hpp",
+        "./native_postgres_test_support.hpp"
+      ],
+      "linkLibraries": [
+        "pq"
+      ],
+      "macos": {
+        "compilerFlags": [
+          "-I/opt/homebrew/opt/libpq/include",
+          "-I/usr/local/opt/libpq/include"
+        ],
+        "linkerFlags": [
+          "-L/opt/homebrew/opt/libpq/lib",
+          "-L/usr/local/opt/libpq/lib"
+        ]
+      }
+    }
+  },
+  "dependencies": {}
+}
