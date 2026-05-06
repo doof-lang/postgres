@@ -233,21 +233,28 @@ function step(statement: Statement): Result<Map<string, PostgresValue> | null, P
 
 class RowStream {
   statement: Statement
+  currentValue: Result<Map<string, PostgresValue>, PostgresError> | null = null
 
-  next(): Result<Map<string, PostgresValue>, PostgresError> | null {
+  next(): bool {
     case statement.native.step() {
       s: Success -> {
         if s.value {
-          return readCurrentRow(statement)
+          this.currentValue = readCurrentRow(statement)
+          return true
         } else {
-          return null
+          return false
         }
       }
-      f: Failure -> return Failure {
-        error: decodeError("step", f.error, statement.sql)
+      f: Failure -> {
+        this.currentValue = Failure {
+          error: decodeError("step", f.error, statement.sql)
+        }
+        return true
       }
     }
   }
+
+  value(): Result<Map<string, PostgresValue>, PostgresError> => this.currentValue!
 }
 
 export function query(statement: Statement, values: PostgresParam[] = []): Result<Stream<Result<Map<string, PostgresValue>, PostgresError> >, PostgresError> {
