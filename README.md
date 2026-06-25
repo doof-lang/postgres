@@ -11,6 +11,11 @@ The native bridge links against `libpq`.
 
 The package manifest includes common Homebrew include and library paths for Apple Silicon and Intel macOS.
 
+## Documentation
+
+- [Guide and API reference](docs/API.md) explains libpq setup, connection lifecycle, prepared statements, value mapping, streaming rows, transactions, and errors.
+- [Sample program](sample.do) demonstrates a minimal end-to-end workflow.
+
 ## Usage
 
 ```doof
