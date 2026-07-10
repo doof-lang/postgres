@@ -70,7 +70,7 @@ std::string encodePostgresError(const std::string& code, const std::string& mess
 }
 
 doof::Result<void, std::string> postgresOk() {
-    return doof::Result<void, std::string>::success();
+    return doof::Success<void>{};
 }
 
 bool tryParseInt64(const std::string& text, int64_t& value) {
@@ -142,9 +142,9 @@ public:
     static doof::Result<std::shared_ptr<NativePostgresDatabase>, std::string> open(const std::string& connectionString) {
         auto database = std::make_shared<NativePostgresDatabase>();
         if (database->openInternal(connectionString) != CONNECTION_OK) {
-            return doof::Result<std::shared_ptr<NativePostgresDatabase>, std::string>::failure(database->notOpenError());
+            return doof::Failure<std::string>{database->notOpenError()};
         }
-        return doof::Result<std::shared_ptr<NativePostgresDatabase>, std::string>::success(database);
+        return doof::Success<std::shared_ptr<NativePostgresDatabase>>{database};
     }
 
     NativePostgresDatabase() = default;
@@ -158,24 +158,24 @@ public:
 
     doof::Result<std::shared_ptr<NativeExecResult>, std::string> exec(const std::string& sql) {
         if (conn_ == nullptr) {
-            return doof::Result<std::shared_ptr<NativeExecResult>, std::string>::failure(notOpenError());
+            return doof::Failure<std::string>{notOpenError()};
         }
 
         PGresult* result = PQexec(conn_, sql.c_str());
         if (result == nullptr) {
-            return doof::Result<std::shared_ptr<NativeExecResult>, std::string>::failure(connectionError("failed to execute SQL"));
+            return doof::Failure<std::string>{connectionError("failed to execute SQL")};
         }
 
         const ExecStatusType status = PQresultStatus(result);
         if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
             const std::string error = resultError(result, "failed to execute SQL");
             PQclear(result);
-            return doof::Result<std::shared_ptr<NativeExecResult>, std::string>::failure(error);
+            return doof::Failure<std::string>{error};
         }
 
         auto execResult = makeExecResult(result);
         PQclear(result);
-        return doof::Result<std::shared_ptr<NativeExecResult>, std::string>::success(execResult);
+        return doof::Success<std::shared_ptr<NativeExecResult>>{execResult};
     }
 
     doof::Result<std::shared_ptr<NativePostgresStatement>, std::string> prepare(const std::string& sql);
@@ -310,12 +310,12 @@ public:
     doof::Result<void, std::string> bindBlob(int32_t index, const NativePostgresBlob& value) {
         const auto error = checkedIndexError(index);
         if (error.has_value()) {
-            return doof::Result<void, std::string>::failure(error.value());
+            return doof::Failure<std::string>{error.value()};
         }
 
         PGconn* conn = rawConn();
         if (conn == nullptr) {
-            return doof::Result<void, std::string>::failure(notOpenError());
+            return doof::Failure<std::string>{notOpenError()};
         }
 
         const auto& bytes = value != nullptr ? *value : emptyBlob();
@@ -323,7 +323,7 @@ public:
         size_t escapedLength = 0;
         unsigned char* escaped = PQescapeByteaConn(conn, source, bytes.size(), &escapedLength);
         if (escaped == nullptr) {
-            return doof::Result<void, std::string>::failure(database_->connectionError("failed to encode bytea parameter"));
+            return doof::Failure<std::string>{database_->connectionError("failed to encode bytea parameter")};
         }
 
         const size_t offset = paramOffset(index);
@@ -340,7 +340,7 @@ public:
     doof::Result<void, std::string> bindNull(int32_t index) {
         const auto error = checkedIndexError(index);
         if (error.has_value()) {
-            return doof::Result<void, std::string>::failure(error.value());
+            return doof::Failure<std::string>{error.value()};
         }
 
         const size_t offset = paramOffset(index);
@@ -352,13 +352,13 @@ public:
 
     doof::Result<bool, std::string> step() {
         if (finalized_) {
-            return doof::Result<bool, std::string>::failure(encodePostgresError(std::string(), "statement is already finalized"));
+            return doof::Failure<std::string>{encodePostgresError(std::string(), "statement is already finalized")};
         }
 
         if (!executed_) {
             PGconn* conn = rawConn();
             if (conn == nullptr) {
-                return doof::Result<bool, std::string>::failure(notOpenError());
+                return doof::Failure<std::string>{notOpenError()};
             }
 
             std::vector<const char*> values(params_.size(), nullptr);
@@ -384,43 +384,43 @@ public:
             lastExecResult_.reset();
 
             if (result_ == nullptr) {
-                return doof::Result<bool, std::string>::failure(database_->connectionError("failed to execute prepared statement"));
+                return doof::Failure<std::string>{database_->connectionError("failed to execute prepared statement")};
             }
 
             const ExecStatusType status = PQresultStatus(result_);
             if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
-                return doof::Result<bool, std::string>::failure(database_->resultError(result_, "failed to execute prepared statement"));
+                return doof::Failure<std::string>{database_->resultError(result_, "failed to execute prepared statement")};
             }
 
             lastExecResult_ = makeExecResult(result_);
         }
 
         if (result_ == nullptr) {
-            return doof::Result<bool, std::string>::failure(encodePostgresError(std::string(), "statement has no active result"));
+            return doof::Failure<std::string>{encodePostgresError(std::string(), "statement has no active result")};
         }
 
         if (PQresultStatus(result_) != PGRES_TUPLES_OK) {
             currentRowIndex_ = -1;
-            return doof::Result<bool, std::string>::success(false);
+            return doof::Success<bool>{false};
         }
 
         const int rowCount = PQntuples(result_);
         if (nextRowIndex_ >= rowCount) {
             currentRowIndex_ = -1;
-            return doof::Result<bool, std::string>::success(false);
+            return doof::Success<bool>{false};
         }
 
         currentRowIndex_ = nextRowIndex_;
         ++nextRowIndex_;
-        return doof::Result<bool, std::string>::success(true);
+        return doof::Success<bool>{true};
     }
 
     doof::Result<NativePostgresRow, std::string> readCurrentRow() {
         if (finalized_) {
-            return doof::Result<NativePostgresRow, std::string>::failure(encodePostgresError(std::string(), "statement is already finalized"));
+            return doof::Failure<std::string>{encodePostgresError(std::string(), "statement is already finalized")};
         }
         if (result_ == nullptr || PQresultStatus(result_) != PGRES_TUPLES_OK || currentRowIndex_ < 0) {
-            return doof::Result<NativePostgresRow, std::string>::failure(encodePostgresError(std::string(), "statement is not positioned on a row"));
+            return doof::Failure<std::string>{encodePostgresError(std::string(), "statement is not positioned on a row")};
         }
 
         auto row = std::make_shared<doof::ordered_map<std::string, NativePostgresValue>>();
@@ -428,12 +428,12 @@ public:
         for (int index = 0; index < count; ++index) {
             const char* rawName = PQfname(result_, index);
             if (rawName == nullptr) {
-                return doof::Result<NativePostgresRow, std::string>::failure(encodePostgresError(std::string(), "column has no name"));
+                return doof::Failure<std::string>{encodePostgresError(std::string(), "column has no name")};
             }
 
             std::string name(rawName);
             if (row->find(name) != row->end()) {
-                return doof::Result<NativePostgresRow, std::string>::failure(encodePostgresError(std::string(), "duplicate column name: " + name));
+                return doof::Failure<std::string>{encodePostgresError(std::string(), "duplicate column name: " + name)};
             }
 
             if (PQgetisnull(result_, currentRowIndex_, index)) {
@@ -476,7 +476,7 @@ public:
                     size_t decodedLength = 0;
                     unsigned char* decoded = PQunescapeBytea(reinterpret_cast<const unsigned char*>(rawValue), &decodedLength);
                     if (decoded == nullptr) {
-                        return doof::Result<NativePostgresRow, std::string>::failure(encodePostgresError(std::string(), "failed to decode bytea column"));
+                        return doof::Failure<std::string>{encodePostgresError(std::string(), "failed to decode bytea column")};
                     }
 
                     auto bytes = std::make_shared<std::vector<uint8_t>>();
@@ -495,15 +495,15 @@ public:
             }
         }
 
-        return doof::Result<NativePostgresRow, std::string>::success(row);
+        return doof::Success<NativePostgresRow>{row};
     }
 
     doof::Result<void, std::string> reset() {
         if (finalized_) {
-            return doof::Result<void, std::string>::failure(encodePostgresError(std::string(), "statement is already finalized"));
+            return doof::Failure<std::string>{encodePostgresError(std::string(), "statement is already finalized")};
         }
         if (rawConn() == nullptr) {
-            return doof::Result<void, std::string>::failure(notOpenError());
+            return doof::Failure<std::string>{notOpenError()};
         }
 
         clearResult();
@@ -538,14 +538,14 @@ public:
         PGresult* result = PQexec(conn, deallocateSql.c_str());
         name_.clear();
         if (result == nullptr) {
-            return doof::Result<void, std::string>::failure(database_->connectionError("failed to deallocate prepared statement"));
+            return doof::Failure<std::string>{database_->connectionError("failed to deallocate prepared statement")};
         }
 
         const ExecStatusType status = PQresultStatus(result);
         if (status != PGRES_COMMAND_OK) {
             const std::string error = database_->resultError(result, "failed to deallocate prepared statement");
             PQclear(result);
-            return doof::Result<void, std::string>::failure(error);
+            return doof::Failure<std::string>{error};
         }
 
         PQclear(result);
@@ -554,9 +554,9 @@ public:
 
     doof::Result<std::shared_ptr<NativeExecResult>, std::string> executionResult() {
         if (lastExecResult_ == nullptr) {
-            return doof::Result<std::shared_ptr<NativeExecResult>, std::string>::failure(encodePostgresError(std::string(), "statement has no execution result"));
+            return doof::Failure<std::string>{encodePostgresError(std::string(), "statement has no execution result")};
         }
-        return doof::Result<std::shared_ptr<NativeExecResult>, std::string>::success(lastExecResult_);
+        return doof::Success<std::shared_ptr<NativeExecResult>>{lastExecResult_};
     }
 
 private:
@@ -588,11 +588,11 @@ private:
     doof::Result<void, std::string> bindTextValue(int32_t index, const std::string& value) {
         const auto error = checkedIndexError(index);
         if (error.has_value()) {
-            return doof::Result<void, std::string>::failure(error.value());
+            return doof::Failure<std::string>{error.value()};
         }
 
         if (rawConn() == nullptr) {
-            return doof::Result<void, std::string>::failure(notOpenError());
+            return doof::Failure<std::string>{notOpenError()};
         }
 
         const size_t offset = paramOffset(index);
@@ -662,37 +662,35 @@ private:
 
 inline doof::Result<std::shared_ptr<NativePostgresStatement>, std::string> NativePostgresDatabase::prepare(const std::string& sql) {
     if (conn_ == nullptr) {
-        return doof::Result<std::shared_ptr<NativePostgresStatement>, std::string>::failure(notOpenError());
+        return doof::Failure<std::string>{notOpenError()};
     }
 
     const std::string statementName = nextStatementName();
     PGresult* prepared = PQprepare(conn_, statementName.c_str(), sql.c_str(), 0, nullptr);
     if (prepared == nullptr) {
-        return doof::Result<std::shared_ptr<NativePostgresStatement>, std::string>::failure(connectionError("failed to prepare SQL"));
+        return doof::Failure<std::string>{connectionError("failed to prepare SQL")};
     }
 
     if (PQresultStatus(prepared) != PGRES_COMMAND_OK) {
         const std::string error = resultError(prepared, "failed to prepare SQL");
         PQclear(prepared);
-        return doof::Result<std::shared_ptr<NativePostgresStatement>, std::string>::failure(error);
+        return doof::Failure<std::string>{error};
     }
     PQclear(prepared);
 
     PGresult* description = PQdescribePrepared(conn_, statementName.c_str());
     if (description == nullptr) {
-        return doof::Result<std::shared_ptr<NativePostgresStatement>, std::string>::failure(connectionError("failed to describe prepared statement"));
+        return doof::Failure<std::string>{connectionError("failed to describe prepared statement")};
     }
 
     if (PQresultStatus(description) != PGRES_COMMAND_OK) {
         const std::string error = resultError(description, "failed to describe prepared statement");
         PQclear(description);
-        return doof::Result<std::shared_ptr<NativePostgresStatement>, std::string>::failure(error);
+        return doof::Failure<std::string>{error};
     }
 
     const int32_t parameterCount = PQnparams(description);
     PQclear(description);
 
-    return doof::Result<std::shared_ptr<NativePostgresStatement>, std::string>::success(
-        std::make_shared<NativePostgresStatement>(shared_from_this(), statementName, sql, parameterCount)
-    );
+    return doof::Success<std::shared_ptr<NativePostgresStatement>>{std::make_shared<NativePostgresStatement>(shared_from_this(), statementName, sql, parameterCount)};
 }
