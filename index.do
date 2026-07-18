@@ -4,30 +4,30 @@ export type PostgresParam = int | long | bool | double | string | readonly byte[
 export type PostgresValue = bool | long | double | string | readonly byte[] | null
 
 export import class NativePostgresDatabase from "./native_postgres.hpp" {
-  static open(connectionString: string): Result<NativePostgresDatabase, string>
-  exec(sql: string): Result<NativeExecResult, string>
-  prepare(sql: string): Result<NativePostgresStatement, string>
-  close(): Result<void, string>
+  isolated static open(connectionString: string): Result<NativePostgresDatabase, string>
+  isolated exec(sql: string): Result<NativeExecResult, string>
+  isolated prepare(sql: string): Result<NativePostgresStatement, string>
+  isolated close(): Result<void, string>
 }
 
 export import class NativeExecResult from "./native_postgres.hpp" {
-  rowCount(): int
-  commandTag(): string
+  isolated rowCount(): int
+  isolated commandTag(): string
 }
 
 export import class NativePostgresStatement from "./native_postgres.hpp" {
-  bindText(index: int, value: string): Result<void, string>
-  bindBool(index: int, value: bool): Result<void, string>
-  bindInt(index: int, value: int): Result<void, string>
-  bindLong(index: int, value: long): Result<void, string>
-  bindDouble(index: int, value: double): Result<void, string>
-  bindBlob(index: int, value: readonly byte[]): Result<void, string>
-  bindNull(index: int): Result<void, string>
-  step(): Result<bool, string>
-  readCurrentRow(): Result<Map<string, PostgresValue>, string>
-  reset(): Result<void, string>
-  finalize(): Result<void, string>
-  executionResult(): Result<NativeExecResult, string>
+  isolated bindText(index: int, value: string): Result<void, string>
+  isolated bindBool(index: int, value: bool): Result<void, string>
+  isolated bindInt(index: int, value: int): Result<void, string>
+  isolated bindLong(index: int, value: long): Result<void, string>
+  isolated bindDouble(index: int, value: double): Result<void, string>
+  isolated bindBlob(index: int, value: readonly byte[]): Result<void, string>
+  isolated bindNull(index: int): Result<void, string>
+  isolated step(): Result<bool, string>
+  isolated readCurrentRow(): Result<Map<string, PostgresValue>, string>
+  isolated reset(): Result<void, string>
+  isolated finalize(): Result<void, string>
+  isolated executionResult(): Result<NativeExecResult, string>
 }
 
 export class PostgresError {
