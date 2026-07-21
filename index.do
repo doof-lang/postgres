@@ -1,13 +1,13 @@
 // Rough PostgreSQL equivalent to std/sqlite, adapted to PostgreSQL conventions.
 
-export type PostgresParam = int | long | bool | double | string | readonly byte[] | null
-export type PostgresValue = bool | long | double | string | readonly byte[] | null
+export type PostgresParam = int | long | bool | double | string | readonly byte[] | none
+export type PostgresValue = bool | long | double | string | readonly byte[] | none
 
 export import class NativePostgresDatabase from "./native_postgres.hpp" {
   isolated static open(connectionString: string): Result<NativePostgresDatabase, string>
   isolated exec(sql: string): Result<NativeExecResult, string>
   isolated prepare(sql: string): Result<NativePostgresStatement, string>
-  isolated close(): Result<void, string>
+  isolated close(): Result<none, string>
 }
 
 export import class NativeExecResult from "./native_postgres.hpp" {
@@ -16,26 +16,26 @@ export import class NativeExecResult from "./native_postgres.hpp" {
 }
 
 export import class NativePostgresStatement from "./native_postgres.hpp" {
-  isolated bindText(index: int, value: string): Result<void, string>
-  isolated bindBool(index: int, value: bool): Result<void, string>
-  isolated bindInt(index: int, value: int): Result<void, string>
-  isolated bindLong(index: int, value: long): Result<void, string>
-  isolated bindDouble(index: int, value: double): Result<void, string>
-  isolated bindBlob(index: int, value: readonly byte[]): Result<void, string>
-  isolated bindNull(index: int): Result<void, string>
+  isolated bindText(index: int, value: string): Result<none, string>
+  isolated bindBool(index: int, value: bool): Result<none, string>
+  isolated bindInt(index: int, value: int): Result<none, string>
+  isolated bindLong(index: int, value: long): Result<none, string>
+  isolated bindDouble(index: int, value: double): Result<none, string>
+  isolated bindBlob(index: int, value: readonly byte[]): Result<none, string>
+  isolated bindNull(index: int): Result<none, string>
   isolated step(): Result<bool, string>
   isolated readCurrentRow(): Result<Map<string, PostgresValue>, string>
-  isolated reset(): Result<void, string>
-  isolated finalize(): Result<void, string>
+  isolated reset(): Result<none, string>
+  isolated finalize(): Result<none, string>
   isolated executionResult(): Result<NativeExecResult, string>
 }
 
 export class PostgresError {
   stage: string
-  code: string | null
+  code: string | none
   message: string
-  detail: string | null
-  sql: string | null
+  detail: string | none
+  sql: string | none
 }
 
 export class ExecResult {
@@ -63,23 +63,23 @@ export function open(connectionString: string): Result<Database, PostgresError> 
       }
     },
     f: Failure -> Failure {
-      error: decodeError("open", f.error, null)
+      error: decodeError("open", f.error, none)
     }
   }
 }
 
-export function close(database: Database): Result<void, PostgresError> {
-  return mapNativeVoid("close", null, database.native.close())
+export function close(database: Database): Result<none, PostgresError> {
+  return mapNativeVoid("close", none, database.native.close())
 }
 
-function decodeError(stage: string, raw: string, sql: string | null): PostgresError {
+function decodeError(stage: string, raw: string, sql: string | none): PostgresError {
   firstSeparator := raw.indexOf("|")
   if firstSeparator < 0 {
     return PostgresError {
       stage,
-      code: null,
+      code: none,
       message: raw,
-      detail: null,
+      detail: none,
       sql,
     }
   }
@@ -89,7 +89,7 @@ function decodeError(stage: string, raw: string, sql: string | null): PostgresEr
   secondSeparator := remainder.indexOf("|")
 
   let message = remainder
-  let detail: string | null = null
+  let detail: string | none = none
   if secondSeparator >= 0 {
     message = remainder.substring(0, secondSeparator)
     detailText := remainder.slice(secondSeparator + 1)
@@ -98,7 +98,7 @@ function decodeError(stage: string, raw: string, sql: string | null): PostgresEr
     }
   }
 
-  let code: string | null = null
+  let code: string | none = none
   if codeText.length > 0 {
     code = codeText
   }
@@ -112,7 +112,7 @@ function decodeError(stage: string, raw: string, sql: string | null): PostgresEr
   }
 }
 
-function mapNativeVoid(stage: string, sql: string | null, result: Result<void, string>): Result<void, PostgresError> {
+function mapNativeVoid(stage: string, sql: string | none, result: Result<none, string>): Result<none, PostgresError> {
   return case result {
     _: Success -> Success(),
     f: Failure -> Failure {
@@ -124,9 +124,9 @@ function mapNativeVoid(stage: string, sql: string | null, result: Result<void, s
 function unexpectedRowError(sql: string): PostgresError {
   return PostgresError {
     stage: "step",
-    code: null,
+    code: none,
     message: "Statement unexpectedly produced a row",
-    detail: null,
+    detail: none,
     sql,
   }
 }
@@ -138,8 +138,8 @@ function toExecResult(result: NativeExecResult): ExecResult {
   }
 }
 
-function emptyRow(): Map<string, PostgresValue> | null {
-  return null
+function emptyRow(): Map<string, PostgresValue> | none {
+  return none
 }
 
 function readCurrentRow(statement: Statement): Result<Map<string, PostgresValue>, PostgresError> {
@@ -168,35 +168,35 @@ export function prepare(database: Database, sql: string): Result<Statement, Post
   }
 }
 
-function bindText(statement: Statement, index: int, value: string): Result<void, PostgresError> {
+function bindText(statement: Statement, index: int, value: string): Result<none, PostgresError> {
   return mapNativeVoid("bind", statement.sql, statement.native.bindText(index, value))
 }
 
-function bindBool(statement: Statement, index: int, value: bool): Result<void, PostgresError> {
+function bindBool(statement: Statement, index: int, value: bool): Result<none, PostgresError> {
   return mapNativeVoid("bind", statement.sql, statement.native.bindBool(index, value))
 }
 
-function bindInt(statement: Statement, index: int, value: int): Result<void, PostgresError> {
+function bindInt(statement: Statement, index: int, value: int): Result<none, PostgresError> {
   return mapNativeVoid("bind", statement.sql, statement.native.bindInt(index, value))
 }
 
-function bindLong(statement: Statement, index: int, value: long): Result<void, PostgresError> {
+function bindLong(statement: Statement, index: int, value: long): Result<none, PostgresError> {
   return mapNativeVoid("bind", statement.sql, statement.native.bindLong(index, value))
 }
 
-function bindDouble(statement: Statement, index: int, value: double): Result<void, PostgresError> {
+function bindDouble(statement: Statement, index: int, value: double): Result<none, PostgresError> {
   return mapNativeVoid("bind", statement.sql, statement.native.bindDouble(index, value))
 }
 
-function bindBlob(statement: Statement, index: int, value: readonly byte[]): Result<void, PostgresError> {
+function bindBlob(statement: Statement, index: int, value: readonly byte[]): Result<none, PostgresError> {
   return mapNativeVoid("bind", statement.sql, statement.native.bindBlob(index, value))
 }
 
-function bindNull(statement: Statement, index: int): Result<void, PostgresError> {
+function bindNull(statement: Statement, index: int): Result<none, PostgresError> {
   return mapNativeVoid("bind", statement.sql, statement.native.bindNull(index))
 }
 
-function bindValue(statement: Statement, index: int, value: PostgresParam): Result<void, PostgresError> {
+function bindValue(statement: Statement, index: int, value: PostgresParam): Result<none, PostgresError> {
   return case value {
     text: string -> bindText(statement, index, text),
     flag: bool -> bindBool(statement, index, flag),
@@ -208,7 +208,7 @@ function bindValue(statement: Statement, index: int, value: PostgresParam): Resu
   }
 }
 
-function bindValues(statement: Statement, values: PostgresParam[] = []): Result<void, PostgresError> {
+function bindValues(statement: Statement, values: PostgresParam[] = []): Result<none, PostgresError> {
   for index of 0..<values.length {
     try bindValue(statement, index + 1, values[index])
   }
@@ -216,11 +216,11 @@ function bindValues(statement: Statement, values: PostgresParam[] = []): Result<
   return Success()
 }
 
-function reset(statement: Statement): Result<void, PostgresError> {
+function reset(statement: Statement): Result<none, PostgresError> {
   return mapNativeVoid("reset", statement.sql, statement.native.reset())
 }
 
-function step(statement: Statement): Result<Map<string, PostgresValue> | null, PostgresError> {
+function step(statement: Statement): Result<Map<string, PostgresValue> | none, PostgresError> {
   return case statement.native.step() {
     s: Success -> if s.value then readCurrentRow(statement) else Success {
       value: emptyRow()
@@ -233,7 +233,7 @@ function step(statement: Statement): Result<Map<string, PostgresValue> | null, P
 
 class RowStream {
   statement: Statement
-  currentValue: Result<Map<string, PostgresValue>, PostgresError> | null = null
+  currentValue: Result<Map<string, PostgresValue>, PostgresError> | none = none
 
   next(): bool {
     case statement.native.step() {
@@ -268,7 +268,7 @@ export function execute(statement: Statement, values: PostgresParam[] = []): Res
   try bindValues(statement, values)
   try row := step(statement)
 
-  if row != null {
+  if row != none {
     return Failure {
       error: unexpectedRowError(statement.sql)
     }
@@ -295,10 +295,10 @@ export function executeSql(database: Database, sql: string): Result<ExecResult, 
   }
 }
 
-export function queryOne(statement: Statement, values: PostgresParam[] = []): Result<Map<string, PostgresValue> | null, PostgresError> {
+export function queryOne(statement: Statement, values: PostgresParam[] = []): Result<Map<string, PostgresValue> | none, PostgresError> {
   try stream := query(statement, values)
   n := stream.next()
-  if n == null {
+  if n == none {
     return Success { value: emptyRow() }
   }
 
@@ -314,7 +314,7 @@ function toJsonValue(value: PostgresValue): JsonValue {
     whole: long -> return whole
     decimal: double -> return decimal
     text: string -> return text
-    _ -> return null
+    _ -> return none
   }
 }
 
@@ -326,17 +326,17 @@ export function toJsonRow(row: Map<string, PostgresValue>): Map<string, JsonValu
   return jsonRow
 }
 
-export function begin(database: Database): Result<void, PostgresError> {
+export function begin(database: Database): Result<none, PostgresError> {
   try executeSql(database, "BEGIN")
   return Success()
 }
 
-export function commit(database: Database): Result<void, PostgresError> {
+export function commit(database: Database): Result<none, PostgresError> {
   try executeSql(database, "COMMIT")
   return Success()
 }
 
-export function rollback(database: Database): Result<void, PostgresError> {
+export function rollback(database: Database): Result<none, PostgresError> {
   try executeSql(database, "ROLLBACK")
   return Success()
 }

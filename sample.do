@@ -23,7 +23,7 @@ class SampleOutput {
   todos: Todo[]
 }
 
-function insertTodo(statement: Statement, title: string, done: bool): Result<void, PostgresError> {
+function insertTodo(statement: Statement, title: string, done: bool): Result<none, PostgresError> {
   try execute(statement, [title, done])
   return Success()
 }
@@ -36,10 +36,10 @@ function readTodo(row: Map<string, PostgresValue>): Result<Todo, PostgresError> 
     f: Failure -> Failure {
       error: PostgresError {
         stage: "read",
-        code: null,
+        code: none,
         message: f.error,
-        detail: null,
-        sql: null,
+        detail: none,
+        sql: none,
       }
     }
   }
