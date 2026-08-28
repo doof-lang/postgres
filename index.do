@@ -1,34 +1,10 @@
 // Rough PostgreSQL equivalent to std/sqlite, adapted to PostgreSQL conventions.
 
-export type PostgresParam = int | long | bool | double | string | readonly byte[] | none
-export type PostgresValue = bool | long | double | string | readonly byte[] | none
+import { NativeExecResult, NativePostgresDatabase, NativePostgresStatement } from "./native"
+import { PostgresParam, PostgresValue } from "./types"
 
-export import class NativePostgresDatabase from "./native_postgres.hpp" {
-  isolated static open(connectionString: string): Result<NativePostgresDatabase, string>
-  isolated exec(sql: string): Result<NativeExecResult, string>
-  isolated prepare(sql: string): Result<NativePostgresStatement, string>
-  isolated close(): Result<none, string>
-}
-
-export import class NativeExecResult from "./native_postgres.hpp" {
-  isolated rowCount(): int
-  isolated commandTag(): string
-}
-
-export import class NativePostgresStatement from "./native_postgres.hpp" {
-  isolated bindText(index: int, value: string): Result<none, string>
-  isolated bindBool(index: int, value: bool): Result<none, string>
-  isolated bindInt(index: int, value: int): Result<none, string>
-  isolated bindLong(index: int, value: long): Result<none, string>
-  isolated bindDouble(index: int, value: double): Result<none, string>
-  isolated bindBlob(index: int, value: readonly byte[]): Result<none, string>
-  isolated bindNull(index: int): Result<none, string>
-  isolated step(): Result<bool, string>
-  isolated readCurrentRow(): Result<Map<string, PostgresValue>, string>
-  isolated reset(): Result<none, string>
-  isolated finalize(): Result<none, string>
-  isolated executionResult(): Result<NativeExecResult, string>
-}
+export { NativeExecResult, NativePostgresDatabase, NativePostgresStatement } from "./native"
+export { PostgresParam, PostgresValue } from "./types"
 
 export class PostgresError {
   stage: string
@@ -221,40 +197,58 @@ function reset(statement: Statement): Result<none, PostgresError> {
 }
 
 function step(statement: Statement): Result<Map<string, PostgresValue> | none, PostgresError> {
-  return case statement.native.step() {
-    s: Success -> if s.value then readCurrentRow(statement) else Success {
-      value: emptyRow()
-    },
-    f: Failure -> Failure {
-      error: decodeError("step", f.error, statement.sql)
+  case statement.native.step() {
+    s: Success -> {
+      if s.value {
+        case readCurrentRow(statement) {
+          row: Success -> return Success { value: row.value }
+          error: Failure -> return Failure { error: error.error }
+        }
+      }
+      return Success { value: none }
+    }
+    f: Failure -> return Failure {
+      error: decodeError("step", f.error, statement.sql),
     }
   }
 }
 
 class RowStream {
   statement: Statement
-  currentValue: Result<Map<string, PostgresValue>, PostgresError> | none = none
+  let currentRow: Map<string, PostgresValue> = {}
+  let currentError: PostgresError | none = none
 
   next(): bool {
     case statement.native.step() {
       s: Success -> {
         if s.value {
-          this.currentValue = readCurrentRow(statement)
+          case readCurrentRow(statement) {
+            row: Success -> {
+              this.currentRow = row.value
+              this.currentError = none
+            }
+            error: Failure -> {
+              this.currentError = error.error
+            }
+          }
           return true
         } else {
           return false
         }
       }
       f: Failure -> {
-        this.currentValue = Failure {
-          error: decodeError("step", f.error, statement.sql)
-        }
+        this.currentError = decodeError("step", f.error, statement.sql)
         return true
       }
     }
   }
 
-  value(): Result<Map<string, PostgresValue>, PostgresError> => this.currentValue!
+  value(): Result<Map<string, PostgresValue>, PostgresError> {
+    if this.currentError != none {
+      return Failure { error: this.currentError! }
+    }
+    return Success { value: this.currentRow }
+  }
 }
 
 export function query(statement: Statement, values: PostgresParam[] = []): Result<Stream<Result<Map<string, PostgresValue>, PostgresError> >, PostgresError> {
@@ -297,12 +291,11 @@ export function executeSql(database: Database, sql: string): Result<ExecResult, 
 
 export function queryOne(statement: Statement, values: PostgresParam[] = []): Result<Map<string, PostgresValue> | none, PostgresError> {
   try stream := query(statement, values)
-  n := stream.next()
-  if n == none {
-    return Success { value: emptyRow() }
+  if !stream.next() {
+    return Success { value: none }
   }
 
-  case n! {
+  case stream.value() {
     s: Success -> return Success { value: s.value }
     f: Failure -> return Failure { error: f.error }
   }

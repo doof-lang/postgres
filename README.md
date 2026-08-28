@@ -11,6 +11,17 @@ The native bridge links against `libpq`.
 
 The package manifest includes common Homebrew include and library paths for Apple Silicon and Intel macOS.
 
+## Tests
+
+The integration tests require a PostgreSQL database and leave it unchanged. Set
+`DOOF_POSTGRES_TEST_URL` to a libpq connection string or PostgreSQL URL:
+
+```sh
+DOOF_POSTGRES_TEST_URL=postgresql://localhost/postgres doof test postgres
+```
+
+When the variable is not set, the database-backed tests are skipped.
+
 ## Documentation
 
 - [Guide and API reference](docs/API.md) explains libpq setup, connection lifecycle, prepared statements, value mapping, streaming rows, transactions, and errors.
