@@ -19,11 +19,11 @@
 
 class NativeExecResult {
 public:
-    NativeExecResult(int32_t rowCount, std::string commandTag)
-        : rowCount_(rowCount), commandTag_(std::move(commandTag)) {}
+    NativeExecResult(int64_t rowsAffected, std::string commandTag)
+        : rowsAffected_(rowsAffected), commandTag_(std::move(commandTag)) {}
 
-    int32_t rowCount() const {
-        return rowCount_;
+    int64_t rowsAffected() const {
+        return rowsAffected_;
     }
 
     std::string commandTag() const {
@@ -31,7 +31,7 @@ public:
     }
 
 private:
-    int32_t rowCount_;
+    int64_t rowsAffected_;
     std::string commandTag_;
 };
 
@@ -97,7 +97,7 @@ bool tryParseDouble(const std::string& text, double& value) {
     return true;
 }
 
-int32_t parseRowCount(PGresult* result) {
+int64_t parseRowsAffected(PGresult* result) {
     if (result == nullptr) {
         return 0;
     }
@@ -107,7 +107,7 @@ int32_t parseRowCount(PGresult* result) {
         if (tuples < 0) {
             return 0;
         }
-        return tuples;
+        return static_cast<int64_t>(tuples);
     }
 
     const char* tuples = PQcmdTuples(result);
@@ -119,18 +119,12 @@ int32_t parseRowCount(PGresult* result) {
     if (!tryParseInt64(tuples, parsed)) {
         return 0;
     }
-    if (parsed > static_cast<int64_t>(std::numeric_limits<int32_t>::max())) {
-        return std::numeric_limits<int32_t>::max();
-    }
-    if (parsed < static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
-        return std::numeric_limits<int32_t>::min();
-    }
-    return static_cast<int32_t>(parsed);
+    return parsed;
 }
 
 std::shared_ptr<NativeExecResult> makeExecResult(PGresult* result) {
     const char* command = result != nullptr ? PQcmdStatus(result) : nullptr;
-    return std::make_shared<NativeExecResult>(parseRowCount(result), command != nullptr ? std::string(command) : std::string());
+    return std::make_shared<NativeExecResult>(parseRowsAffected(result), command != nullptr ? std::string(command) : std::string());
 }
 
 } // namespace
@@ -235,7 +229,6 @@ public:
 
 private:
     int openInternal(const std::string& connectionString) {
-        connectionString_ = connectionString;
         PGconn* raw = PQconnectdb(connectionString.c_str());
         if (raw == nullptr) {
             openError_ = encodePostgresError(std::string(), "failed to allocate postgres connection");
@@ -259,7 +252,6 @@ private:
     }
 
     PGconn* conn_ = nullptr;
-    std::string connectionString_;
     std::optional<std::string> openError_;
     inline static std::atomic<uint64_t> nextStatementId_{0};
 
@@ -282,6 +274,10 @@ public:
 
     ~NativePostgresStatement() {
         finalizeBestEffort();
+    }
+
+    int32_t parameterCount() const {
+        return parameterCount_;
     }
 
     doof::Result<void, std::string> bindText(int32_t index, const std::string& value) {
@@ -354,12 +350,12 @@ public:
         if (finalized_) {
             return doof::Failure<std::string>{encodePostgresError(std::string(), "statement is already finalized")};
         }
+        if (rawConn() == nullptr) {
+            return doof::Failure<std::string>{notOpenError()};
+        }
 
         if (!executed_) {
             PGconn* conn = rawConn();
-            if (conn == nullptr) {
-                return doof::Failure<std::string>{notOpenError()};
-            }
 
             std::vector<const char*> values(params_.size(), nullptr);
             for (size_t index = 0; index < params_.size(); ++index) {
@@ -418,6 +414,9 @@ public:
     doof::Result<NativePostgresRow, std::string> readCurrentRow() {
         if (finalized_) {
             return doof::Failure<std::string>{encodePostgresError(std::string(), "statement is already finalized")};
+        }
+        if (rawConn() == nullptr) {
+            return doof::Failure<std::string>{notOpenError()};
         }
         if (result_ == nullptr || PQresultStatus(result_) != PGRES_TUPLES_OK || currentRowIndex_ < 0) {
             return doof::Failure<std::string>{encodePostgresError(std::string(), "statement is not positioned on a row")};
@@ -557,6 +556,10 @@ public:
             return doof::Failure<std::string>{encodePostgresError(std::string(), "statement has no execution result")};
         }
         return doof::Success<std::shared_ptr<NativeExecResult>>{lastExecResult_};
+    }
+
+    bool hasResultSet() const {
+        return result_ != nullptr && PQresultStatus(result_) == PGRES_TUPLES_OK;
     }
 
 private:

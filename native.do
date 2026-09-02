@@ -8,11 +8,12 @@ export import class NativePostgresDatabase from "./native_postgres.hpp" {
 }
 
 export import class NativeExecResult from "./native_postgres.hpp" {
-  isolated rowCount(): int
+  isolated rowsAffected(): long
   isolated commandTag(): string
 }
 
 export import class NativePostgresStatement from "./native_postgres.hpp" {
+  isolated parameterCount(): int
   isolated bindText(index: int, value: string): Result<none, string>
   isolated bindBool(index: int, value: bool): Result<none, string>
   isolated bindInt(index: int, value: int): Result<none, string>
@@ -25,4 +26,5 @@ export import class NativePostgresStatement from "./native_postgres.hpp" {
   isolated reset(): Result<none, string>
   isolated finalize(): Result<none, string>
   isolated executionResult(): Result<NativeExecResult, string>
+  isolated hasResultSet(): bool
 }

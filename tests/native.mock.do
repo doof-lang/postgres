@@ -1,11 +1,12 @@
 import { PostgresValue } from "../types"
 
 export class NativeExecResult {
-  isolated rowCount(): int => 0
+  isolated rowsAffected(): long => 0
   isolated commandTag(): string => "MOCK"
 }
 
 export class NativePostgresStatement {
+  isolated parameterCount(): int => 0
   isolated bindText(index: int, value: string): Result<none, string> => Success()
   isolated bindBool(index: int, value: bool): Result<none, string> => Success()
   isolated bindInt(index: int, value: int): Result<none, string> => Success()
@@ -18,6 +19,7 @@ export class NativePostgresStatement {
   isolated reset(): Result<none, string> => Success()
   isolated finalize(): Result<none, string> => Success()
   isolated executionResult(): Result<NativeExecResult, string> => Success { value: NativeExecResult() }
+  isolated hasResultSet(): bool => false
 }
 
 export class NativePostgresDatabase {

@@ -19,7 +19,7 @@ class Todo {
 
 class SampleOutput {
   connectionString: string
-  inserted: int
+  inserted: long
   todos: Todo[]
 }
 
@@ -37,6 +37,7 @@ function readTodo(row: Map<string, PostgresValue>): Result<Todo, PostgresError> 
       error: PostgresError {
         stage: "read",
         code: none,
+        sqlState: none,
         message: f.error,
         detail: none,
         sql: none,
@@ -79,7 +80,7 @@ function runSample(connectionString: string): Result<SampleOutput, PostgresError
   return Success {
     value: SampleOutput {
       connectionString,
-      inserted: first.rowCount + 2,
+      inserted: first.rowsAffected + 2,
       todos,
     }
   }

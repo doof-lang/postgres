@@ -9,19 +9,19 @@ export { PostgresParam, PostgresValue } from "./types"
 export class PostgresError {
   stage: string
   code: string | none
+  sqlState: string | none
   message: string
   detail: string | none
   sql: string | none
 }
 
 export class ExecResult {
-  rowCount: int
+  rowsAffected: long
   commandTag: string
 }
 
 export class Database {
   native: NativePostgresDatabase
-  connectionString: string
 }
 
 export class Statement {
@@ -35,7 +35,6 @@ export function open(connectionString: string): Result<Database, PostgresError> 
     s: Success -> Success {
       value: Database {
         native: s.value,
-        connectionString,
       }
     },
     f: Failure -> Failure {
@@ -54,6 +53,7 @@ function decodeError(stage: string, raw: string, sql: string | none): PostgresEr
     return PostgresError {
       stage,
       code: none,
+      sqlState: none,
       message: raw,
       detail: none,
       sql,
@@ -82,6 +82,7 @@ function decodeError(stage: string, raw: string, sql: string | none): PostgresEr
   return PostgresError {
     stage,
     code,
+    sqlState: code,
     message,
     detail,
     sql,
@@ -101,6 +102,7 @@ function unexpectedRowError(sql: string): PostgresError {
   return PostgresError {
     stage: "step",
     code: none,
+    sqlState: none,
     message: "Statement unexpectedly produced a row",
     detail: none,
     sql,
@@ -109,7 +111,7 @@ function unexpectedRowError(sql: string): PostgresError {
 
 function toExecResult(result: NativeExecResult): ExecResult {
   return ExecResult {
-    rowCount: result.rowCount(),
+    rowsAffected: result.rowsAffected(),
     commandTag: result.commandTag(),
   }
 }
@@ -185,6 +187,20 @@ function bindValue(statement: Statement, index: int, value: PostgresParam): Resu
 }
 
 function bindValues(statement: Statement, values: PostgresParam[] = []): Result<none, PostgresError> {
+  expected := statement.native.parameterCount()
+  if values.length != expected {
+    return Failure {
+      error: PostgresError {
+        stage: "bind",
+        code: none,
+        sqlState: none,
+        message: "Expected ${expected} parameters, received ${values.length}",
+        detail: none,
+        sql: statement.sql,
+      }
+    }
+  }
+
   for index of 0..<values.length {
     try bindValue(statement, index + 1, values[index])
   }
@@ -213,12 +229,17 @@ function step(statement: Statement): Result<Map<string, PostgresValue> | none, P
   }
 }
 
-class RowStream {
+class RowStream implements Stream<Result<Map<string, PostgresValue>, PostgresError> > {
   statement: Statement
   let currentRow: Map<string, PostgresValue> = {}
   let currentError: PostgresError | none = none
+  let finished = false
 
   next(): bool {
+    if finished {
+      return false
+    }
+
     case statement.native.step() {
       s: Success -> {
         if s.value {
@@ -229,15 +250,18 @@ class RowStream {
             }
             error: Failure -> {
               this.currentError = error.error
+              this.finished = true
             }
           }
           return true
         } else {
+          this.finished = true
           return false
         }
       }
       f: Failure -> {
         this.currentError = decodeError("step", f.error, statement.sql)
+        this.finished = true
         return true
       }
     }
@@ -262,7 +286,7 @@ export function execute(statement: Statement, values: PostgresParam[] = []): Res
   try bindValues(statement, values)
   try row := step(statement)
 
-  if row != none {
+  if row != none || statement.native.hasResultSet() {
     return Failure {
       error: unexpectedRowError(statement.sql)
     }

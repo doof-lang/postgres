@@ -1,6 +1,6 @@
 # std/postgres
 
-Small `Result`-first PostgreSQL wrapper for Doof programs. It mirrors the broad shape of `std/sqlite`, but uses PostgreSQL conventions: connections open from a connection string, prepared statements use `$1`, `$2`, ... placeholders, and execution results report `rowCount` plus the PostgreSQL command tag.
+Small `Result`-first PostgreSQL wrapper for Doof programs. It mirrors the broad shape of `std/sqlite`, but uses PostgreSQL conventions: connections open from a connection string, prepared statements use `$1`, `$2`, ... placeholders, and execution results include `rowsAffected` plus the PostgreSQL command tag.
 
 ## Build Prerequisites
 
@@ -92,7 +92,7 @@ Execute SQL directly with PostgreSQL. This is useful for schema setup, temp tabl
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `rowCount` | `int` | Rows affected or returned |
+| `rowsAffected` | `long` | Rows affected or returned |
 | `commandTag` | `string` | PostgreSQL command tag such as `INSERT 0 1` or `SELECT 2` |
 
 ### `prepare(database: Database, sql: string): Result<Statement, PostgresError>`
@@ -101,12 +101,12 @@ Compile a reusable prepared statement. Parameters use PostgreSQL's positional `$
 
 ### `execute(statement: Statement, values: PostgresParam[] = []): Result<ExecResult, PostgresError>`
 
-Reset, bind, and run a prepared statement that should not return rows. If the statement produces a row, `execute` fails so accidental `SELECT` calls do not silently discard data.
+Reset, bind, and run a prepared statement that should not return columns. `execute` rejects queries even when their result set is empty.
 
 ```doof
 insertUser := try prepare(database, "INSERT INTO users(name, active) VALUES ($1, $2)")
 result := try execute(insertUser, ["Ada", true])
-println("affected rows ${result.rowCount}")
+println("affected rows ${result.rowsAffected}")
 ```
 
 ### `query(statement: Statement, values: PostgresParam[] = []): Result<Stream<Result<Map<string, PostgresValue>, PostgresError>>, PostgresError>`
@@ -129,6 +129,7 @@ All public operations return `Result<_, PostgresError>`. `PostgresError` include
 |-------|------|-------------|
 | `stage` | `string` | Operation stage such as `open`, `prepare`, `bind`, `step`, or `read` |
 | `code` | `string | null` | PostgreSQL SQLSTATE when available |
+| `sqlState` | `string | null` | PostgreSQL SQLSTATE when available |
 | `message` | `string` | Human-readable error message |
 | `detail` | `string | null` | PostgreSQL detail text when available |
 | `sql` | `string | null` | SQL text associated with the error when available |

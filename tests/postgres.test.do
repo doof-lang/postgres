@@ -84,3 +84,40 @@ export function testExecuteRejectsRowProducingStatement(): none {
 
   try! close(database)
 }
+
+export function testExecuteRejectsEmptyResultSet(): none {
+  database := openTestDatabase() else { return }
+  statement := try! prepare(database, "SELECT 1 AS value WHERE FALSE")
+
+  case execute(statement) {
+    _: Success -> assert(false, "expected execute to reject a row-producing statement")
+    f: Failure -> assert(f.error.message.contains("unexpectedly produced a row"), "expected execute row error")
+  }
+
+  try! close(database)
+}
+
+export function testCloseInvalidatesStatements(): none {
+  database := openTestDatabase() else { return }
+  statement := try! prepare(database, "SELECT 1 AS value")
+  try! close(database)
+
+  case queryOne(statement) {
+    _: Success -> assert(false, "expected closed database to invalidate statement")
+    f: Failure -> assert(f.error.message.contains("database is not open"), "expected closed database error")
+  }
+}
+
+export function testStreamStopsAfterReadError(): none {
+  database := openTestDatabase() else { return }
+  statement := try! prepare(database, "SELECT 1 AS value, 2 AS value")
+  stream := try! query(statement)
+
+  assert(stream.next(), "expected stream error item")
+  case stream.value() {
+    _: Success -> assert(false, "expected duplicate column error")
+    f: Failure -> assert(f.error.message.contains("duplicate column name"), "expected duplicate column error")
+  }
+  assert(!stream.next(), "expected stream to stop after its first error")
+  try! close(database)
+}
