@@ -325,7 +325,7 @@ export function queryOne(statement: Statement, values: PostgresParam[] = []): Re
   }
 }
 
-function toJsonValue(value: PostgresValue): JsonValue {
+function toSerialValue(value: PostgresValue): SerialValue {
   case value {
     flag: bool -> return flag
     whole: long -> return whole
@@ -335,10 +335,10 @@ function toJsonValue(value: PostgresValue): JsonValue {
   }
 }
 
-export function toJsonRow(row: Map<string, PostgresValue>): Map<string, JsonValue> {
-  jsonRow: Map<string, JsonValue> := {}
+export function toJsonRow(row: Map<string, PostgresValue>): Map<string, SerialValue> {
+  jsonRow: Map<string, SerialValue> := {}
   for key, value of row {
-    jsonRow[key] = toJsonValue(value)
+    jsonRow[key] = toSerialValue(value)
   }
   return jsonRow
 }
