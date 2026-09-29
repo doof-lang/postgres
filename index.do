@@ -335,12 +335,12 @@ function toSerialValue(value: PostgresValue): SerialValue {
   }
 }
 
-export function toJsonRow(row: Map<string, PostgresValue>): Map<string, SerialValue> {
+export function toJsonRow(row: Map<string, PostgresValue>): readonly Map<string, SerialValue> {
   jsonRow: Map<string, SerialValue> := {}
   for key, value of row {
     jsonRow[key] = toSerialValue(value)
   }
-  return jsonRow
+  return jsonRow.drainToReadonly()
 }
 
 export function begin(database: Database): Result<none, PostgresError> {
