@@ -53,7 +53,7 @@ function fetchTodos(database: Database): Result<Todo[], PostgresError> {
   todos: Todo[] := []
 
   for item of stream {
-    row := try! item
+    row := item!
     try todo := readTodo(row)
     todos.push(todo)
   }

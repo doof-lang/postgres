@@ -12,8 +12,8 @@ export function testPackageIndexUsesMockedNativeImport(): none {
 }
 
 export function testPreparedExecuteRejectsWrongParameterCount(): none {
-  database := try! open("mock")
-  statement := try! prepare(database, "UPDATE widgets SET active = $1")
+  database := open("mock")!
+  statement := prepare(database, "UPDATE widgets SET active = $1")!
   case execute(statement, [true]) {
     _: Success -> assert(false, "expected parameter count mismatch")
     f: Failure -> assert(f.error.message.contains("Expected 0 parameters, received 1"), "expected bind count error")
