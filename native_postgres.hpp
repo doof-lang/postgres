@@ -155,7 +155,11 @@ public:
             return doof::Failure<std::string>{notOpenError()};
         }
 
-        PGresult* result = PQexec(conn_, sql.c_str());
+        PGresult* result = nullptr;
+        {
+            doof::CpuTokenRelease release;
+            result = PQexec(conn_, sql.c_str());
+        }
         if (result == nullptr) {
             return doof::Failure<std::string>{connectionError("failed to execute SQL")};
         }
@@ -229,7 +233,11 @@ public:
 
 private:
     int openInternal(const std::string& connectionString) {
-        PGconn* raw = PQconnectdb(connectionString.c_str());
+        PGconn* raw = nullptr;
+        {
+            doof::CpuTokenRelease release;
+            raw = PQconnectdb(connectionString.c_str());
+        }
         if (raw == nullptr) {
             openError_ = encodePostgresError(std::string(), "failed to allocate postgres connection");
             return CONNECTION_BAD;
@@ -365,15 +373,18 @@ public:
             }
 
             clearResult();
-            result_ = PQexecPrepared(
-                conn,
-                name_.c_str(),
-                parameterCount_,
-                values.empty() ? nullptr : values.data(),
-                nullptr,
-                nullptr,
-                0
-            );
+            {
+                doof::CpuTokenRelease release;
+                result_ = PQexecPrepared(
+                    conn,
+                    name_.c_str(),
+                    parameterCount_,
+                    values.empty() ? nullptr : values.data(),
+                    nullptr,
+                    nullptr,
+                    0
+                );
+            }
             executed_ = true;
             nextRowIndex_ = 0;
             currentRowIndex_ = -1;
@@ -534,7 +545,11 @@ public:
         }
 
         const std::string deallocateSql = "DEALLOCATE " + name_;
-        PGresult* result = PQexec(conn, deallocateSql.c_str());
+        PGresult* result = nullptr;
+        {
+            doof::CpuTokenRelease release;
+            result = PQexec(conn, deallocateSql.c_str());
+        }
         name_.clear();
         if (result == nullptr) {
             return doof::Failure<std::string>{database_->connectionError("failed to deallocate prepared statement")};
@@ -643,7 +658,11 @@ private:
         }
 
         const std::string deallocateSql = "DEALLOCATE " + name_;
-        PGresult* result = PQexec(conn, deallocateSql.c_str());
+        PGresult* result = nullptr;
+        {
+            doof::CpuTokenRelease release;
+            result = PQexec(conn, deallocateSql.c_str());
+        }
         if (result != nullptr) {
             PQclear(result);
         }
@@ -669,7 +688,11 @@ inline doof::Result<std::shared_ptr<NativePostgresStatement>, std::string> Nativ
     }
 
     const std::string statementName = nextStatementName();
-    PGresult* prepared = PQprepare(conn_, statementName.c_str(), sql.c_str(), 0, nullptr);
+    PGresult* prepared = nullptr;
+    {
+        doof::CpuTokenRelease release;
+        prepared = PQprepare(conn_, statementName.c_str(), sql.c_str(), 0, nullptr);
+    }
     if (prepared == nullptr) {
         return doof::Failure<std::string>{connectionError("failed to prepare SQL")};
     }
