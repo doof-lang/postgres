@@ -268,8 +268,8 @@ class RowStream implements Stream<Result<Map<string, PostgresValue>, PostgresErr
   }
 
   value(): Result<Map<string, PostgresValue>, PostgresError> {
-    if this.currentError != none {
-      return Failure { error: this.currentError! }
+    if error := this.currentError {
+      return Failure { error }
     }
     return Success { value: this.currentRow }
   }
